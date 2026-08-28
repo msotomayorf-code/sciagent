@@ -1,0 +1,23 @@
+# Dependencias
+node_modules/
+
+# API keys — NUNCA subir al repositorio
+.env
+.env.local
+.env.production
+
+# Output del pipeline (contiene texto del artículo, no va al repo)
+output/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp

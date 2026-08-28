@@ -1,0 +1,13 @@
+{
+  "name": "sciagent",
+  "version": "1.0.0",
+  "description": "Sistema multi-agente para elaboración de artículos científicos",
+  "type": "module",
+  "scripts": {
+    "pipeline": "node orchestrator.js",
+    "chat": "node chat.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  }
+}
