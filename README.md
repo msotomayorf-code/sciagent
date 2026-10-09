@@ -1,8 +1,45 @@
-# SciAgent v2 — Sistema multi-agente para artículos científicos
+# SciAgent v3 — De usuario a arquitecto
 
-Sistema de **11 agentes especializados** construido con la API de Anthropic (Claude).
-Integra el pipeline de producción científica original con tres agentes del
-**Sistema Maestro de Investigación Doctoral Multiagente (SMID-MA 3.0)**.
+> *"Cómo un investigador social usa la IA para producir, auditar y validar artículos científicos sin saber programar"*
+>
+> Manuel J. Sotomayor-Fernández — ORCID: [0000-0002-7105-620X](https://orcid.org/0000-0002-7105-620X)
+> Universidad Tecnológica del Perú, Sede Piura
+
+---
+
+## ¿Qué es SciAgent?
+
+SciAgent v3 es un sistema de **12 agentes especializados** de inteligencia artificial diseñado para asistir al investigador académico en la **producción, revisión y validación** de artículos científicos. Fue construido usando la API de Anthropic (Claude) por un investigador social sin formación en programación, aplicando el principio de aprendizaje situado.
+
+El sistema no reemplaza al investigador. Lo amplifica. El investigador es el guía del proceso — la IA es la herramienta.
+
+---
+
+## Arquitectura — 12 agentes en 3 capas
+
+### Capa 0 — Verificación previa
+| Agente | Función |
+|--------|---------|
+| Agente 0: Verificador Previo | Checklist de insumos antes de activar el pipeline |
+
+### Capa 1 — Pipeline de producción (8 agentes)
+| Agente | Función |
+|--------|---------|
+| Agente 1: Investigador | Búsqueda y síntesis de literatura |
+| Agente 2: Metodólogo | Marco metodológico |
+| Agente 3: Analista | Procesamiento de datos |
+| Agente 4: Redactor | Escritura académica IMRAD |
+| Agente 5: Revisor | Coherencia interna |
+| Agente 6: Editor | Formato de revista objetivo |
+| Agente 7: Humanizador | Eliminación de patrones artificiales |
+| Agente 8: Director Visual | Tablas, figuras y presentación |
+
+### Capa 2 — SMID-MA 3.0 (3 agentes de evaluación académica)
+| Agente | Función |
+|--------|---------|
+| Agente 9: Evaluador de Calidad | Rigor metodológico según estándares Scopus/WoS |
+| Agente 10: Detector de Vacíos | Vacíos teóricos, metodológicos y geográficos |
+| Agente 11: Evaluador Scopus/WoS | Probabilidad de aceptación en revistas indexadas |
 
 ---
 
@@ -18,305 +55,73 @@ Configura tu API key de Anthropic:
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
-### Skills opcionales (Claude Code)
+---
+
+## Uso
+
+### Pipeline completo (12 agentes)
 
 ```bash
-# Humanizador — blader/humanizer
-mkdir -p ~/.claude/skills
-git clone https://github.com/blader/humanizer.git ~/.claude/skills/humanizer
-
-# Director Visual — banana-claude (requiere API key de Google AI Studio)
-git clone --depth 1 https://github.com/AgriciDaniel/banana-claude.git
-cd banana-claude && ./install.sh --with-mcp TU_GOOGLE_API_KEY
+node orchestrator_v3.js
 ```
 
----
-
-## Uso rápido
-
-### Pipeline completo (11 agentes en secuencia)
+### Interfaz de chat
 
 ```bash
-npm run pipeline
-```
-
-Genera cuatro archivos en `./output/`:
-
-| Archivo | Contenido |
-|---|---|
-| `pipeline_resultado.json` | Output JSON completo de los 11 agentes |
-| `banana_prompts.txt` | Prompts `/banana generate` listos para Claude Code |
-| `agenda_futura.txt` | Párrafo de agenda futura listo para insertar en el artículo |
-| `dictamen_editorial.txt` | Dictamen editorial con revista objetivo y estrategia de envío |
-
-### Chat interactivo con un agente
-
-```bash
-npm run chat
+node chat.js
 ```
 
 ---
 
-## Arquitectura — 11 agentes
+## Resultados — cinco casos reales
+
+| Trabajo | Disciplina | Estado |
+|---------|-----------|--------|
+| Índice de Curvatura Social (ICS) — 33 distritos de Piura | Sociología algorítmica | En revisión — Formación Universitaria (Q2 Scopus) |
+| Planeamiento estratégico regional — PDC Piura 2022-2030 | Gestión pública territorial | En revisión y validación |
+| Estado, nación y desafíos estructurales en el Perú (1821-2024) | Historia política | **Validado — listo para publicación** |
+| Tesis sobre estrategias didácticas y EVA | Educación superior | Proceso de revisión, validación y corrección completado |
+| Unidad Regional de Prospectiva — GORE Piura (S/ 1,298,250) | Prospectiva regional | En validación institucional |
+
+---
+
+## Documentación narrativa
+
+El proceso completo de diseño, implementación y aprendizaje está documentado en el libro:
+
+**"De usuario a arquitecto: cómo un investigador social usa la IA para producir, auditar y validar artículos científicos sin saber programar"**
+
+→ Disponible en este repositorio: [`libro_completo.docx`](./libro_completo.docx)
+
+El artículo académico sobre el sistema:
+
+**"SciAgent v3: arquitectura multiagente para la producción, revisión y validación de artículos científicos asistida por inteligencia artificial"**
+
+→ Disponible en este repositorio: [`paper_sciagent_v3.docx`](./paper_sciagent_v3.docx)
+
+---
+
+## Principio central
+
+> *El sistema agrega valor en proporción directa al conocimiento que el investigador aporta. No es un atajo para quien no sabe. Es un amplificador para quien ya sabe.*
+
+---
+
+## Licencia
+
+- **Código:** MIT License
+- **Libro y paper:** [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/)
+
+---
+
+## Cita
 
 ```
-Tu tema de investigación
-         │
-         ▼
-  ┌─────────────┐
-  │ Orquestador │  ← orchestrator.js
-  └──────┬──────┘
-         │ pasa contexto acumulado a cada agente
-         ▼
-  ┌──────────────────────────────────────────────────────────┐
-  │  PIPELINE DE PRODUCCIÓN                                  │
-  │  1. 🔍 Investigador      → estado del arte y brechas    │
-  │  2. 📐 Metodólogo        → diseño metodológico          │
-  │  3. 📊 Analista          → resultados y estadística     │
-  │  4. ✍️  Redactor         → texto IMRAD completo         │
-  │  5. 🔬 Revisor           → peer review interno          │
-  │  6. 📝 Editor            → formato y normas revista     │
-  │  7. 🧑‍💻 Humanizador      → elimina patrones IA          │
-  │  8. 🍌 Director Visual   → prompts para figuras         │
-  ├──────────────────────────────────────────────────────────┤
-  │  SMID-MA 3.0 (Sistema Maestro de Investigación Doctoral) │
-  │  9.  🏅 Evaluador Calidad → nivel de evidencia + sesgos │
-  │  10. 🔭 Detector Vacíos  → agenda futura PRIORIZADA     │
-  │  11. 🎯 Evaluador Scopus → dictamen editorial completo  │
-  └──────────────────────────────────────────────────────────┘
-         │
-         ├── output/pipeline_resultado.json
-         ├── output/banana_prompts.txt
-         ├── output/agenda_futura.txt
-         └── output/dictamen_editorial.txt
+Sotomayor-Fernández, M. J. (2026). SciAgent v3: arquitectura multiagente para la
+producción, revisión y validación de artículos científicos asistida por inteligencia
+artificial. GitHub. https://github.com/msotomayorf-code/sciagent
 ```
 
 ---
 
-## Los 11 agentes en detalle
-
-### Pipeline de producción (agentes 1-8)
-
-#### 1. 🔍 Investigador
-Busca y sintetiza literatura científica. Identifica brechas y construye
-el estado del arte con referencias en APA 7ma edición.
-
-#### 2. 📐 Metodólogo
-Diseña el enfoque metodológico: tipo de estudio, criterios de inclusión/exclusión,
-instrumentos y procedimiento. Garantiza el rigor científico del diseño.
-
-#### 3. 📊 Analista
-Interpreta resultados, sugiere pruebas estadísticas, elabora tablas y figuras
-y redacta la sección de resultados con intervalos de confianza.
-
-#### 4. ✍️ Redactor
-Redacta introducción, discusión, conclusiones y abstract integrando el trabajo
-de los agentes anteriores. Cuida la coherencia narrativa y el lenguaje académico.
-
-#### 5. 🔬 Revisor
-Evalúa el manuscrito como árbitro externo. Puntúa de 0 a 10, detecta
-inconsistencias lógicas y recomienda: aceptar / revisar / rechazar.
-
-#### 6. 📝 Editor
-Aplica normas APA/Vancouver/CIT, unifica referencias, revisa ortografía
-y prepara el manuscrito para envío. Genera checklist de envío.
-
-#### 7. 🧑‍💻 Humanizador
-Basado en [blader/humanizer](https://github.com/blader/humanizer).
-Aplica 29 patrones anti-IA: varía el ritmo, usa voz activa, elimina frases
-formulaicas ("Es crucial", "resulta fundamental"), añade perspectiva del autor.
-Conserva sin tocar: cifras, referencias, términos técnicos, estructura IMRAD.
-
-#### 8. 🍌 Director Visual
-Basado en [banana-claude](https://github.com/AgriciDaniel/banana-claude).
-Genera prompts con la fórmula de 5 componentes para producir figuras científicas
-con `/banana generate` en Claude Code (motor: Google Gemini, hasta 4K).
-
----
-
-### SMID-MA 3.0 (agentes 9-11)
-
-Estos tres agentes están basados en el **Sistema Maestro de Investigación
-Doctoral Multiagente (SMID-MA 3.0)** y se ejecutan después del pipeline
-de producción para agregar una capa de evaluación científica rigurosa.
-
-#### 9. 🏅 Evaluador de Calidad
-Asigna el **nivel de evidencia** (I-VII según la escala SMID-MA),
-detecta cuatro tipos de **sesgos** (selección, medición, confusión, publicación),
-evalúa la **calidad metodológica** (alta/media/baja) y ejecuta las
-**5 verificaciones del supervisor SMID-MA**:
-
-| # | Verificación |
-|---|---|
-| 1 | ¿Toda afirmación tiene evidencia? |
-| 2 | ¿Toda evidencia posee fuente verificable? |
-| 3 | ¿Existe trazabilidad documental? |
-| 4 | ¿Hay contradicciones no explicadas? |
-| 5 | ¿El texto aporta análisis y no solo descripción? |
-
-Emite certificado: `APROBADO` / `APROBADO_CON_OBSERVACIONES` / `RECHAZADO`.
-
-#### 10. 🔭 Detector de Vacíos
-Función doble basada en el Agente 5 del SMID-MA 3.0:
-
-**A — Vacíos que el artículo CIERRA:** refuerza el argumento de novedad
-frente a editores y revisores.
-
-**B — Vacíos que el artículo ABRE:** genera la **agenda futura de investigación**
-clasificada por tipo (teórico, conceptual, metodológico, geográfico, poblacional,
-temporal, estadístico) y priorizada con la **Matriz SMID-MA**:
-
-| Prioridad | Relevancia | Factibilidad | Publicabilidad |
-|---|---|---|---|
-| 1 | Alta | Alta | Alta |
-| 2 | Alta | Alta | Media |
-| 3 | Cualquier combinación inferior |
-
-Genera el párrafo de agenda futura **listo para insertar** en el artículo.
-
-#### 11. 🎯 Evaluador Scopus/WoS
-Basado en el Agente 10 del SMID-MA 3.0. Emite el **dictamen editorial completo**:
-
-- **Probabilidad de publicación:** Alta (>70%) / Media (40-70%) / Baja (<40%)
-- **Revista objetivo:** nombre real, ISSN real, cuartil actual Scopus/WoS
-- **Hasta 3 revistas alternativas** con justificación
-- **Estrategia editorial:** qué enfatizar en la carta de presentación,
-  qué secciones fortalecer antes del envío, cómo responder a revisores típicos
-
-Integra los outputs del Evaluador de Calidad (agente 9) y del Detector
-de Vacíos (agente 10) para un veredicto informado, no solo basado en el texto.
-
----
-
-## Cómo funciona el contexto acumulado
-
-Cada agente recibe **todo lo que generaron los agentes anteriores** como contexto.
-El Evaluador Scopus, por ejemplo, ya conoce el certificado de calidad del agente 9
-y la agenda futura del agente 10 antes de emitir su dictamen.
-
-```js
-let ctx = `Tema: ${tema}\n`;
-
-resultados.investigacion = await callAgent("investigador", prompt, ctx);
-ctx += `\n[INVESTIGADOR]\n${JSON.stringify(resultados.investigacion)}\n`;
-
-// ...cada agente ve todo lo anterior...
-
-resultados.evaluacionScopus = await callAgent("evaluadorScopus", prompt, ctx);
-// El agente 11 tiene el contexto completo de los 10 anteriores
-```
-
----
-
-## Flujo completo con banana-claude
-
-```bash
-# 1. Correr el pipeline completo
-ANTHROPIC_API_KEY=sk-ant-... npm run pipeline
-
-# 2. Revisar el dictamen editorial
-cat output/dictamen_editorial.txt
-
-# 3. Ver la agenda futura generada
-cat output/agenda_futura.txt
-
-# 4. Abrir Claude Code y generar figuras
-claude
-/banana generate "..."
-
-# 5. Si necesitas evaluación independiente de un texto
-npm run chat
-# Elige: evaluadorCalidad / detectorVacios / evaluadorScopus
-# Pega tu texto y recibe el análisis
-```
-
----
-
-## Personalización
-
-### Cambiar el tema del pipeline
-
-```js
-// En orchestrator.js, al final del archivo:
-const TEMA_EJEMPLO = "Tu tema de investigación aquí";
-```
-
-### Cambiar el modelo
-
-```js
-model: "claude-sonnet-4-5",       // balance calidad/velocidad (actual)
-model: "claude-opus-4-5",         // máxima capacidad, más lento
-model: "claude-haiku-4-5-20251001", // más rápido y económico
-```
-
-### Agregar un nuevo agente
-
-1. Agrega una entrada al objeto `AGENTS` con `name`, `emoji` y `systemPrompt`
-2. Añade un paso en `runPipeline()` con `await callAgent("nombre", prompt, ctx)`
-3. Actualiza `ctx` con el output del nuevo agente
-4. Agrega el agente al menú de `chat.js`
-
----
-
-## Estructura de archivos
-
-```
-sciagent/
-├── package.json              ← dependencias (@anthropic-ai/sdk)
-├── orchestrator.js           ← pipeline completo (11 agentes)
-├── chat.js                   ← chat interactivo con agente individual
-├── README.md                 ← esta documentación
-└── output/                   ← generado al correr el pipeline
-    ├── pipeline_resultado.json    ← output JSON de los 11 agentes
-    ├── banana_prompts.txt         ← prompts /banana listos para usar
-    ├── agenda_futura.txt          ← agenda futura de investigación
-    └── dictamen_editorial.txt     ← dictamen editorial completo
-```
-
----
-
-## Ejemplo de output — Agente 11 (Evaluador Scopus)
-
-```
-DICTAMEN EDITORIAL — SciAgent v2 + SMID-MA 3.0
-══════════════════════════════════════════════════
-
-── CALIDAD METODOLÓGICA (Agente 9) ─────────────────
-Nivel de evidencia:    Nivel IV (cuantitativo no experimental)
-Calidad metodológica:  alta
-Certificado:           APROBADO_CON_OBSERVACIONES
-
-── PUBLICABILIDAD (Agente 11) ───────────────────────
-Probabilidad:          Alta (72%)
-Revista objetivo:      Formación Universitaria
-ISSN:                  0718-5006
-Cuartil:               Q2
-Base:                  Scopus
-
-── REVISTAS ALTERNATIVAS ────────────────────────────
-• Revista CEPAL (Q2) — enfoque en políticas públicas latinoamericanas
-• Perfiles Latinoamericanos (Q3) — ciencias sociales aplicadas
-• Latin American Research Review (Q2) — investigación regional
-
-── VEREDICTO FINAL ──────────────────────────────────
-El artículo tiene una contribución metodológica original y datos
-empíricos verificables. Con las correcciones del agente 9 y la
-sección de agenda futura del agente 10, la probabilidad de aceptación
-en Formación Universitaria supera el 70%.
-```
-
----
-
-## Skills externos requeridos
-
-| Skill | Repositorio | Para qué |
-|---|---|---|
-| blader/humanizer | github.com/blader/humanizer | Agente 7 — humanización |
-| banana-claude | github.com/AgriciDaniel/banana-claude | Agente 8 — figuras |
-
-## Créditos del sistema
-
-- **Agentes 1-8:** SciAgent (diseño propio, UTP Piura)
-- **Agentes 9-11:** adaptados del SMID-MA 3.0 (Sistema Maestro de Investigación Doctoral Multiagente)
-- **Motor de lenguaje:** Claude (Anthropic) — modelo claude-sonnet-4-5
-- **Motor de imágenes:** Google Gemini via banana-claude
+*Desarrollado en Piura, Perú — Universidad Tecnológica del Perú*
