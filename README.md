@@ -1,5 +1,7 @@
 # SciAgent v3 — De usuario a arquitecto
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23285905.svg)](https://doi.org/10.5281/zenodo.23285905)
+
 > *"Cómo un investigador social usa la IA para producir, auditar y validar artículos científicos sin saber programar"*
 >
 > Manuel J. Sotomayor-Fernández — ORCID: [0000-0002-7105-620X](https://orcid.org/0000-0002-7105-620X)
