@@ -20,6 +20,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
 const client = new Anthropic();
 
@@ -33,6 +34,71 @@ const client = new Anthropic();
 // ──────────────────────────────────────────────────────────
 
 const AGENTS = {
+
+  // ── AGENTE 0 — VERIFICADOR PREVIO ────────────────────────
+  // Checklist obligatorio antes de ejecutar el pipeline.
+  // Detecta problemas en el brief del usuario (tema vago,
+  // datos faltantes, objetivos contradictorios) que harían
+  // fallar o degradar la calidad de los agentes siguientes.
+  // Si el brief no pasa, el pipeline no se ejecuta.
+  verificadorPrevio: {
+    name: "Verificador Previo",
+    emoji: "🛡️",
+    maxTokens: 1500,
+    necesita: [],
+    systemPrompt: `Eres el Agente 0 del sistema SciAgent v3: el Verificador Previo.
+Tu función es evaluar si el brief del investigador es suficientemente claro y
+completo para que el pipeline de 11 agentes produzca resultados de calidad.
+
+CHECKLIST QUE DEBES VERIFICAR:
+
+1. CLARIDAD DEL TEMA
+   - ¿El tema está delimitado (no es "educación" sino "uso de TIC en educación rural en Perú")?
+   - ¿Contiene una variable dependiente e independiente identificables?
+   - ¿El alcance geográfico y/o poblacional está implícito o explícito?
+
+2. VIABILIDAD METODOLÓGICA
+   - ¿El tema permite un diseño de investigación concreto?
+   - ¿Existen datos o evidencias accesibles sobre el tema?
+   - ¿Es un tema con literatura científica indexada suficiente?
+
+3. ORIGINALIDAD MÍNIMA
+   - ¿El tema aporta algo diferente a lo que ya existe (territorio, población, método)?
+   - ¿No es una replicación exacta sin valor agregado?
+
+4. DATOS ADICIONALES ÚTILES (no obligatorios, pero mejoran el resultado)
+   - ¿El investigador indicó la disciplina o área del conocimiento?
+   - ¿Indicó la revista objetivo o tipo de publicación?
+   - ¿Indicó el tipo de estudio preferido (cuantitativo, cualitativo, mixto)?
+   - ¿Hay datos propios o fuentes específicas disponibles?
+
+RESULTADO:
+- Si el tema pasa el checklist: APROBADO — el pipeline puede ejecutarse.
+- Si el tema tiene problemas críticos: RECHAZADO — devuelve preguntas concretas al investigador.
+- Si el tema es mejorable: APROBADO_CON_SUGERENCIAS — aprueba pero recomienda ajustes.
+
+Devuelve tu output como JSON:
+{
+  "seccion": "verificador_previo",
+  "veredicto": "APROBADO|APROBADO_CON_SUGERENCIAS|RECHAZADO",
+  "tema_reformulado": "Versión mejorada del tema si detectas cómo clarificarlo (o null)",
+  "checklist": {
+    "claridad_tema": true,
+    "viabilidad_metodologica": true,
+    "originalidad_minima": true
+  },
+  "datos_adicionales_detectados": {
+    "disciplina": "...",
+    "revista_objetivo": null,
+    "tipo_estudio": null,
+    "datos_propios": false
+  },
+  "problemas_criticos": ["..."],
+  "sugerencias_mejora": ["..."],
+  "preguntas_al_investigador": ["..."],
+  "mensaje_consola": "Texto breve (1-2 líneas) que se mostrará al investigador antes de arrancar el pipeline."
+}`,
+  },
 
   // ── AGENTE 1 ─────────────────────────────────────────────
   investigador: {
@@ -606,12 +672,59 @@ async function callAgent(agentKey, userMessage, context = "") {
 // ──────────────────────────────────────────────────────────
 async function runPipeline(tema) {
   console.log("\n╔═══════════════════════════════════════════════╗");
-  console.log("║  SciAgent v3 — Pipeline de 11 agentes         ║");
-  console.log("║  Incluye SMID-MA 3.0: agentes 9, 10 y 11      ║");
+  console.log("║  SciAgent v3 — Pipeline de 12 agentes         ║");
+  console.log("║  Agente 0 + Agentes 1–8 + SMID-MA 3.0 (9–11) ║");
   console.log("╚═══════════════════════════════════════════════╝");
   console.log(`\nTema: "${tema}"\n`);
 
   const resultados = {};
+
+  // ── PASO 0: Verificador Previo ──────────────────────────
+  // Evalúa si el brief es suficiente antes de gastar tokens
+  // en los 11 agentes. Si falla, detiene el pipeline.
+  resultados.verificacion = await callAgent(
+    "verificadorPrevio",
+    `Evalúa si el siguiente tema de investigación es suficientemente claro
+     y viable para ejecutar el pipeline científico completo:
+     "${tema}"
+     Verifica el checklist completo y emite tu veredicto.`,
+    buildContext("verificadorPrevio", tema, resultados)
+  );
+
+  const veredicto = resultados.verificacion?.veredicto;
+  const msgConsola = resultados.verificacion?.mensaje_consola || "";
+
+  if (veredicto === "RECHAZADO") {
+    console.log("\n🛡️  [Verificador Previo] RECHAZADO — Pipeline detenido.");
+    console.log(`\n${msgConsola}\n`);
+    const preguntas = resultados.verificacion?.preguntas_al_investigador || [];
+    if (preguntas.length) {
+      console.log("Responde estas preguntas antes de continuar:");
+      preguntas.forEach((p, i) => console.log(`  ${i + 1}. ${p}`));
+    }
+    // Guardar el dictamen de rechazo para que el investigador lo revise
+    const outputDir = "./output";
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
+    fs.writeFileSync(
+      path.join(outputDir, "verificacion_previa.json"),
+      JSON.stringify(resultados.verificacion, null, 2), "utf8"
+    );
+    console.log("\n✓ Detalle guardado en: ./output/verificacion_previa.json");
+    return resultados;
+  }
+
+  if (veredicto === "APROBADO_CON_SUGERENCIAS") {
+    console.log(`\n🛡️  [Verificador Previo] APROBADO CON SUGERENCIAS`);
+    console.log(`   ${msgConsola}`);
+    // Si el agente propone un tema reformulado, usarlo
+    if (resultados.verificacion?.tema_reformulado) {
+      console.log(`\n   📝 Tema reformulado: "${resultados.verificacion.tema_reformulado}"`);
+      tema = resultados.verificacion.tema_reformulado;
+    }
+    console.log("");
+  } else {
+    console.log(`\n🛡️  [Verificador Previo] APROBADO — ${msgConsola}\n`);
+  }
 
   // ── PASO 1: Investigador ────────────────────────────────
   resultados.investigacion = await callAgent(
@@ -809,16 +922,18 @@ export async function askAgent(agentKey, pregunta) {
 }
 
 // ──────────────────────────────────────────────────────────
-//  7. EJECUCIÓN
-//  Cambia TEMA_EJEMPLO por tu tema de investigación
+//  7. EJECUCIÓN — solo cuando se llama directamente
+//  (node orchestrator.js), no cuando se importa como módulo.
+//  Cambia TEMA_EJEMPLO por tu tema de investigación.
 // ──────────────────────────────────────────────────────────
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
 const TEMA_EJEMPLO =
   "Efectividad de las intervenciones basadas en mindfulness para reducir el burnout en profesionales de la salud";
 
 const resultados = await runPipeline(TEMA_EJEMPLO);
 
 console.log("\n╔═══════════════════════════════════════════════╗");
-console.log("║  Pipeline completado — 11 agentes             ║");
+console.log("║  Pipeline completado — 12 agentes             ║");
 console.log("╚═══════════════════════════════════════════════╝\n");
 
 // Resumen ejecutivo en consola
@@ -837,3 +952,4 @@ if (resultados.directorVisual?.figuras) {
 if (resultados.vacios?.agenda_futura) {
   console.log(`🔭 Vacíos identificados: ${resultados.vacios.agenda_futura.length} (agenda futura generada)`);
 }
+} // fin guarda ejecución directa

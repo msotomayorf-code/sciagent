@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "pipeline": "node orchestrator.js",
+    "tesis": "node thesis.js",
     "chat": "node chat.js"
   },
   "dependencies": {

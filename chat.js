@@ -1,6 +1,6 @@
 // ============================================================
-//  SciAgent v2 — Chat interactivo con agentes individuales
-//  11 agentes disponibles incluyendo SMID-MA 3.0
+//  SciAgent v3 — Chat interactivo con agentes individuales
+//  12 agentes: Agente 0 + Agentes 1–8 + SMID-MA 3.0 (9–11)
 //  Uso: ANTHROPIC_API_KEY=sk-... node chat.js
 // ============================================================
 
@@ -10,6 +10,18 @@ import * as readline from "readline";
 const client = new Anthropic();
 
 const AGENTS = {
+
+  verificadorPrevio: {
+    name: "Verificador Previo",
+    emoji: "🛡️",
+    systemPrompt: `Eres el Agente 0 del sistema SciAgent v3: el Verificador Previo.
+Evalúas si el brief de un investigador es suficientemente claro para producir
+un artículo científico de calidad. Verificas: claridad del tema, viabilidad
+metodológica y originalidad mínima.
+Si el tema es vago, haces preguntas concretas para clarificarlo.
+Si el tema está bien, lo reformulas en versión mejorada y das luz verde.
+Responde en español académico, directo y útil.`,
+  },
 
   investigador: {
     name: "Investigador",
@@ -156,7 +168,7 @@ class AgentChat {
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 1000,
+      max_tokens: 2000,
       system: this.agent.systemPrompt,
       messages: this.history,
     });
@@ -179,12 +191,14 @@ function question(prompt) { return new Promise(resolve => rl.question(prompt, re
 
 async function main() {
   console.log("\n╔═══════════════════════════════════════════════╗");
-  console.log("║  SciAgent v2 — Chat Interactivo               ║");
-  console.log("║  11 agentes (incluye SMID-MA 3.0)             ║");
+  console.log("║  SciAgent v3 — Chat Interactivo               ║");
+  console.log("║  12 agentes (Ag.0 + Ag.1–8 + SMID-MA 3.0)    ║");
   console.log("╚═══════════════════════════════════════════════╝\n");
 
   console.log("Agentes disponibles:\n");
-  console.log("  ── Producción del artículo ──────────────────");
+  console.log("  ── Verificación previa ───────────────────────");
+  console.log(`  🛡️  verificadorPrevio    — Verificador Previo`);
+  console.log("\n  ── Producción del artículo ──────────────────");
   const produccion = ["investigador","metodologo","analista","redactor","revisor","editor","humanizador","directorVisual"];
   produccion.forEach(k => {
     const a = AGENTS[k];
