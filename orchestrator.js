@@ -26,12 +26,20 @@ const client = new Anthropic();
 // ──────────────────────────────────────────────────────────
 //  1. DEFINICIÓN DE AGENTES
 // ──────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
+//  CONTEXTO SELECTIVO: cada agente declara qué resultados
+//  previos necesita. Reduce tokens enviados en ~50%.
+//  TOKENS: cada agente declara su max_tokens según necesidad.
+// ──────────────────────────────────────────────────────────
+
 const AGENTS = {
 
   // ── AGENTE 1 ─────────────────────────────────────────────
   investigador: {
     name: "Investigador",
     emoji: "🔍",
+    maxTokens: 2000,
+    necesita: [],  // primer agente, no necesita contexto previo
     systemPrompt: `Eres un agente investigador científico experto.
 Tu función es:
 - Revisar y sintetizar literatura científica relevante
@@ -54,6 +62,8 @@ Devuelve tu output como JSON con esta estructura:
   metodologo: {
     name: "Metodólogo",
     emoji: "📐",
+    maxTokens: 2000,
+    necesita: ["investigacion"],
     systemPrompt: `Eres un agente metodólogo científico experto.
 Tu función es:
 - Diseñar el enfoque metodológico más adecuado
@@ -78,6 +88,8 @@ Devuelve tu output como JSON con esta estructura:
   analista: {
     name: "Analista",
     emoji: "📊",
+    maxTokens: 2000,
+    necesita: ["investigacion", "metodologia"],
     systemPrompt: `Eres un agente analista de datos científicos experto.
 Tu función es:
 - Interpretar los resultados del estudio
@@ -101,6 +113,8 @@ Devuelve tu output como JSON con esta estructura:
   redactor: {
     name: "Redactor",
     emoji: "✍️",
+    maxTokens: 4000,  // necesita espacio para intro + discusión + conclusiones completas
+    necesita: ["investigacion", "metodologia", "resultados"],
     systemPrompt: `Eres un agente redactor académico experto.
 Tu función es:
 - Redactar introducción, discusión y conclusiones
@@ -123,6 +137,8 @@ Devuelve tu output como JSON con esta estructura:
   revisor: {
     name: "Revisor",
     emoji: "🔬",
+    maxTokens: 2000,
+    necesita: ["metodologia", "resultados", "redaccion"],
     systemPrompt: `Eres un agente revisor científico (peer reviewer) experto.
 Tu función es:
 - Evaluar la calidad científica del manuscrito
@@ -147,6 +163,8 @@ Devuelve tu output como JSON con esta estructura:
   editor: {
     name: "Editor",
     emoji: "📝",
+    maxTokens: 2000,
+    necesita: ["redaccion", "revision"],
     systemPrompt: `Eres un agente editor de publicaciones científicas experto.
 Tu función es:
 - Aplicar las normas de estilo de la revista objetivo
@@ -170,6 +188,8 @@ Devuelve tu output como JSON con esta estructura:
   humanizador: {
     name: "Humanizador",
     emoji: "🧑‍💻",
+    maxTokens: 4000,  // recibe texto completo de 6 secciones, necesita espacio para devolver todo
+    necesita: ["redaccion", "revision", "edicion"],
     systemPrompt: `Eres un agente especializado en humanización de textos científicos.
 Tu misión es transformar el manuscrito final para que suene auténticamente
 humano, eliminando los patrones típicos de escritura generada por IA, pero
@@ -220,6 +240,8 @@ Devuelve tu output como JSON con esta estructura:
   directorVisual: {
     name: "Director Visual",
     emoji: "🍌",
+    maxTokens: 2000,
+    necesita: ["redaccion", "resultados"],  // solo necesita el texto y los resultados, no la evaluación
     systemPrompt: `Eres un agente Director Visual experto en comunicación científica
 y generación de imágenes con IA. Trabajas con el skill banana-claude
 (AgriciDaniel/banana-claude), que usa Google Gemini como motor de generación.
@@ -275,6 +297,8 @@ Devuelve tu output como JSON con esta estructura:
   evaluadorCalidad: {
     name: "Evaluador de Calidad",
     emoji: "🏅",
+    maxTokens: 2500,
+    necesita: ["investigacion", "metodologia", "resultados", "redaccion", "humanizacion"],
     systemPrompt: `Eres un agente evaluador de calidad científica experto, basado en
 el sistema SMID-MA 3.0. Tu función es emitir un juicio riguroso sobre
 la calidad metodológica del artículo y su nivel de evidencia.
@@ -343,6 +367,8 @@ Devuelve tu output como JSON con esta estructura:
   detectorVacios: {
     name: "Detector de Vacíos",
     emoji: "🔭",
+    maxTokens: 2500,
+    necesita: ["investigacion", "redaccion", "evaluacionCalidad"],
     systemPrompt: `Eres un agente especializado en identificación de vacíos científicos,
 basado en el sistema SMID-MA 3.0. Tu función es doble:
 
@@ -410,6 +436,8 @@ Devuelve tu output como JSON con esta estructura:
   evaluadorScopus: {
     name: "Evaluador Scopus/WoS",
     emoji: "🎯",
+    maxTokens: 2500,
+    necesita: ["redaccion", "humanizacion", "evaluacionCalidad", "vacios"],  // solo lo que realmente necesita para el dictamen
     systemPrompt: `Eres un agente evaluador de publicabilidad experto en Scopus y Web of Science,
 basado en el sistema SMID-MA 3.0. Tu función es emitir un dictamen editorial
 completo que le permita al investigador decidir dónde y cómo enviar el artículo.
@@ -489,7 +517,59 @@ Devuelve tu output como JSON con esta estructura:
 };
 
 // ──────────────────────────────────────────────────────────
-//  2. FUNCIÓN BASE — Llamada a un agente individual
+//  2. PARSER JSON ROBUSTO — 3 estrategias en cascada
+// ──────────────────────────────────────────────────────────
+function parseJSON(rawText, agentKey) {
+  // Estrategia 1: bloque ```json ... ``` explícito
+  const fenced = rawText.match(/```json\s*([\s\S]*?)```/);
+  if (fenced) {
+    try { return JSON.parse(fenced[1].trim()); } catch (_) {}
+  }
+
+  // Estrategia 2: buscar el primer { que abre y su cierre balanceado
+  // (evita capturar texto antes/después del JSON)
+  const start = rawText.indexOf("{");
+  if (start !== -1) {
+    let depth = 0;
+    for (let i = start; i < rawText.length; i++) {
+      if (rawText[i] === "{") depth++;
+      else if (rawText[i] === "}") {
+        depth--;
+        if (depth === 0) {
+          try { return JSON.parse(rawText.slice(start, i + 1)); } catch (_) { break; }
+        }
+      }
+    }
+  }
+
+  // Estrategia 3: fallback — devolver texto plano como campo contenido
+  console.warn(`  ⚠️  [${agentKey}] no devolvió JSON válido — guardando texto plano`);
+  return { seccion: agentKey, contenido: rawText };
+}
+
+// ──────────────────────────────────────────────────────────
+//  3. CONSTRUCCIÓN DE CONTEXTO SELECTIVO
+//  Cada agente solo recibe los resultados que necesita,
+//  reduciendo el costo por pipeline en ~50%.
+// ──────────────────────────────────────────────────────────
+function buildContext(agentKey, tema, resultados) {
+  const agent = AGENTS[agentKey];
+  const claves = agent.necesita || [];
+
+  if (claves.length === 0) return "";  // primer agente: no necesita contexto
+
+  const partes = [`Tema del artículo: ${tema}\n`];
+  for (const clave of claves) {
+    if (resultados[clave]) {
+      const label = clave.toUpperCase();
+      partes.push(`[${label}]\n${JSON.stringify(resultados[clave], null, 2)}`);
+    }
+  }
+  return partes.join("\n\n");
+}
+
+// ──────────────────────────────────────────────────────────
+//  4. FUNCIÓN BASE — Llamada a un agente individual
 // ──────────────────────────────────────────────────────────
 async function callAgent(agentKey, userMessage, context = "") {
   const agent = AGENTS[agentKey];
@@ -500,11 +580,11 @@ async function callAgent(agentKey, userMessage, context = "") {
   if (context) {
     messages.push({
       role: "user",
-      content: `Contexto acumulado del proceso:\n${context}`,
+      content: `Contexto del proceso:\n${context}`,
     });
     messages.push({
       role: "assistant",
-      content: "Entendido. Tengo en cuenta el trabajo previo de mis colegas.",
+      content: "Entendido. Tengo en cuenta el trabajo previo.",
     });
   }
 
@@ -512,85 +592,72 @@ async function callAgent(agentKey, userMessage, context = "") {
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-5",
-    max_tokens: 2000,
+    max_tokens: agent.maxTokens || 2000,
     system: agent.systemPrompt,
     messages,
   });
 
   const rawText = response.content[0].text;
-
-  try {
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-  } catch (_) {}
-
-  return { seccion: agentKey, contenido: rawText };
+  return parseJSON(rawText, agentKey);
 }
 
 // ──────────────────────────────────────────────────────────
-//  3. PIPELINE PRINCIPAL — 11 agentes
+//  5. PIPELINE PRINCIPAL — 11 agentes
 // ──────────────────────────────────────────────────────────
 async function runPipeline(tema) {
   console.log("\n╔═══════════════════════════════════════════════╗");
-  console.log("║  SciAgent v2 — Pipeline de 11 agentes         ║");
+  console.log("║  SciAgent v3 — Pipeline de 11 agentes         ║");
   console.log("║  Incluye SMID-MA 3.0: agentes 9, 10 y 11      ║");
   console.log("╚═══════════════════════════════════════════════╝");
   console.log(`\nTema: "${tema}"\n`);
 
   const resultados = {};
-  let contextoAcumulado = `Tema del artículo: ${tema}\n\n`;
 
   // ── PASO 1: Investigador ────────────────────────────────
   resultados.investigacion = await callAgent(
     "investigador",
     `Realiza una revisión de la literatura sobre: "${tema}".
      Identifica las principales fuentes, el estado del arte y las brechas existentes.`,
-    contextoAcumulado
+    buildContext("investigador", tema, resultados)
   );
-  contextoAcumulado += `\n[INVESTIGADOR]\n${JSON.stringify(resultados.investigacion, null, 2)}\n`;
 
   // ── PASO 2: Metodólogo ──────────────────────────────────
   resultados.metodologia = await callAgent(
     "metodologo",
     `Basándote en el estado del arte identificado, diseña la metodología del artículo sobre: "${tema}".`,
-    contextoAcumulado
+    buildContext("metodologo", tema, resultados)
   );
-  contextoAcumulado += `\n[METODÓLOGO]\n${JSON.stringify(resultados.metodologia, null, 2)}\n`;
 
   // ── PASO 3: Analista ────────────────────────────────────
   resultados.resultados = await callAgent(
     "analista",
     `Con base en la metodología propuesta, describe cómo se analizarían
      los resultados del estudio sobre: "${tema}".`,
-    contextoAcumulado
+    buildContext("analista", tema, resultados)
   );
-  contextoAcumulado += `\n[ANALISTA]\n${JSON.stringify(resultados.resultados, null, 2)}\n`;
 
   // ── PASO 4: Redactor ────────────────────────────────────
   resultados.redaccion = await callAgent(
     "redactor",
     `Redacta la introducción, discusión y conclusiones del artículo sobre: "${tema}",
      integrando el trabajo de los otros agentes.`,
-    contextoAcumulado
+    buildContext("redactor", tema, resultados)
   );
-  contextoAcumulado += `\n[REDACTOR]\n${JSON.stringify(resultados.redaccion, null, 2)}\n`;
 
   // ── PASO 5: Revisor ─────────────────────────────────────
   resultados.revision = await callAgent(
     "revisor",
     `Evalúa el manuscrito completo sobre: "${tema}" y proporciona tu revisión crítica.`,
-    contextoAcumulado
+    buildContext("revisor", tema, resultados)
   );
-  contextoAcumulado += `\n[REVISOR]\n${JSON.stringify(resultados.revision, null, 2)}\n`;
 
   // ── PASO 6: Editor ──────────────────────────────────────
   resultados.edicion = await callAgent(
     "editor",
     `Realiza la edición final del manuscrito sobre: "${tema}".
      Prepáralo para envío a revista científica indexada.`,
-    contextoAcumulado
+    buildContext("editor", tema, resultados)
   );
-  contextoAcumulado += `\n[EDITOR]\n${JSON.stringify(resultados.edicion, null, 2)}\n`;
 
   // ── PASO 7: Humanizador ─────────────────────────────────
   resultados.humanizacion = await callAgent(
@@ -598,9 +665,8 @@ async function runPipeline(tema) {
     `Humaniza el manuscrito completo sobre: "${tema}".
      Aplica todas tus técnicas para eliminar patrones de escritura IA
      conservando rigurosamente el contenido científico, los datos y las referencias.`,
-    contextoAcumulado
+    buildContext("humanizador", tema, resultados)
   );
-  contextoAcumulado += `\n[HUMANIZADOR]\n${JSON.stringify(resultados.humanizacion, null, 2)}\n`;
 
   // ── PASO 8: Director Visual ─────────────────────────────
   resultados.directorVisual = await callAgent(
@@ -609,25 +675,19 @@ async function runPipeline(tema) {
      los prompts optimizados para banana-claude que producirán las figuras
      académicas necesarias. Usa la fórmula de 5 componentes y selecciona
      el modo de dominio correcto para cada figura.`,
-    contextoAcumulado
+    buildContext("directorVisual", tema, resultados)
   );
-  contextoAcumulado += `\n[DIRECTOR VISUAL]\n${JSON.stringify(resultados.directorVisual, null, 2)}\n`;
 
   // ── PASO 9: Evaluador de Calidad (SMID-MA) ──────────────
-  // Evalúa el nivel de evidencia, detecta sesgos y emite
-  // un certificado de calidad metodológica.
   resultados.evaluacionCalidad = await callAgent(
     "evaluadorCalidad",
     `Evalúa la calidad científica y el nivel de evidencia del artículo completo
      sobre: "${tema}". Verifica las 5 condiciones del supervisor SMID-MA.
      Detecta todos los sesgos potenciales y emite el certificado de calidad.`,
-    contextoAcumulado
+    buildContext("evaluadorCalidad", tema, resultados)
   );
-  contextoAcumulado += `\n[EVALUADOR DE CALIDAD]\n${JSON.stringify(resultados.evaluacionCalidad, null, 2)}\n`;
 
   // ── PASO 10: Detector de Vacíos (SMID-MA) ───────────────
-  // Identifica qué brechas cierra este artículo y genera
-  // la agenda futura de investigación lista para insertar.
   resultados.vacios = await callAgent(
     "detectorVacios",
     `Analiza el artículo sobre: "${tema}" e identifica:
@@ -635,22 +695,17 @@ async function runPipeline(tema) {
      (B) Los nuevos vacíos que abre — la agenda futura de investigación.
      Usa la matriz de priorización SMID-MA para cada vacío.
      Genera el párrafo de agenda futura listo para insertar en el artículo.`,
-    contextoAcumulado
+    buildContext("detectorVacios", tema, resultados)
   );
-  contextoAcumulado += `\n[DETECTOR DE VACÍOS]\n${JSON.stringify(resultados.vacios, null, 2)}\n`;
 
   // ── PASO 11: Evaluador Scopus/WoS (SMID-MA) ─────────────
-  // Dictamen editorial final: revista objetivo, cuartil,
-  // estrategia editorial y probabilidad de publicación.
-  // Integra los outputs de los agentes 9 y 10 para un
-  // veredicto informado y accionable.
   resultados.evaluacionScopus = await callAgent(
     "evaluadorScopus",
     `Emite el dictamen editorial completo del artículo sobre: "${tema}".
      Integra la evaluación de calidad (agente 9) y los vacíos identificados (agente 10).
      Determina la probabilidad de publicación, la revista objetivo con cuartil real,
      hasta 3 revistas alternativas, y la estrategia editorial concreta para el envío.`,
-    contextoAcumulado
+    buildContext("evaluadorScopus", tema, resultados)
   );
 
   // ── GUARDAR RESULTADOS ──────────────────────────────────
@@ -747,14 +802,14 @@ async function runPipeline(tema) {
 }
 
 // ──────────────────────────────────────────────────────────
-//  4. MODO CHAT — Consultar a un agente específico
+//  6. MODO CHAT — Consultar a un agente específico
 // ──────────────────────────────────────────────────────────
 export async function askAgent(agentKey, pregunta) {
   return await callAgent(agentKey, pregunta);
 }
 
 // ──────────────────────────────────────────────────────────
-//  5. EJECUCIÓN
+//  7. EJECUCIÓN
 //  Cambia TEMA_EJEMPLO por tu tema de investigación
 // ──────────────────────────────────────────────────────────
 const TEMA_EJEMPLO =
