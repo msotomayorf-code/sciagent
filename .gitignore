@@ -21,3 +21,8 @@ npm-debug.log*
 .vscode/
 .idea/
 *.swp
+
+# Outputs de revisión
+*.pdf
+page-*.jpg
+Estado_sin_nacion_v2_revisado.docx
